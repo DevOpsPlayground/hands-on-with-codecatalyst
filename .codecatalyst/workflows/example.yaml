@@ -20,11 +20,13 @@ Actions:
         - WorkflowSource # This specifies that the action requires this Workflow as a source
 
     Outputs:
-      # Optional; Automatically discover reports for popular test frameworks
       AutoDiscoverReports:
         Enabled: true
-        # Use as prefix for the report files
         ReportNamePrefix: rpt
+      Artifacts:
+        - Name: pythonLibs
+          Files:
+            - /root/.local/**/*
 
     # Defines the action's properties.
     Configuration:
@@ -37,3 +39,41 @@ Actions:
                 echo "Install required code libraries"
                 cd src
                 pip install --user -r requirements.txt
+          Compute:
+           Type: EC2
+  Test_Phase:
+    Identifier: aws/managed-test@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+      Artifacts:
+        - pythonLibs
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: false
+        ReportNamePrefix: rpt
+    Configuration:
+        Steps:
+        - Run: |
+            echo "Copying artifacts from build on ${HOSTNAME}"
+            mv ${CATALYST_SOURCE_DIR_pythonLibs}/root/.local ~
+            export PATH=$PATH:$HOME/.local/bin
+            cd src
+        - Run: |
+            echo "Running unit tests"
+            python -m pytest
+        - Run: |
+            echo "Running bandit vulnerability scanner"
+            bandit -r . --format sarif --output junit/bandit.sarif
+            true    # Ignore failures flagged by bandit
+        - Run: |
+            echo "Installing and running tfsec"
+            cd ../terraform
+            wget https://github.com/aquasecurity/tfsec/releases/download/v1.28.1/tfsec-linux-amd64 -O tfsec
+            chmod +x ./tfsec
+            ./tfsec . --format sarif > ../src/junit/tfsec.sarif
+            true
+    Compute:
+      Type: EC2
+    DependsOn:
+      - Init
