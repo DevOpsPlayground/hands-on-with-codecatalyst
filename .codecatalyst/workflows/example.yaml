@@ -31,11 +31,23 @@ Actions:
       # Required - Steps are sequential instructions that run shell commands
       Steps:
         - Run: |
-            echo "Install required environment libraries on ${HOSTNAME}"
-            pip install --user -r env_requirements.txt
-        - Run: |
-            echo "Install required code libraries"
+            echo "Copying artifacts from build on ${HOSTNAME}"
+            mv ${CATALYST_SOURCE_DIR_pythonLibs}/root/.local ~
+            export PATH=$PATH:$HOME/.local/bin
             cd src
-            pip install --user -r requirements.txt
+        - Run: |
+            echo "Running unit tests"
+            python -m pytest
+        - Run: |
+            echo "Running bandit vulnerability scanner"
+            bandit -r . --format sarif --output junit/bandit.sarif
+            true    # Ignore failures flagged by bandit
+        - Run: |
+            echo "Installing and running tfsec"
+            cd ../terraform
+            wget https://github.com/aquasecurity/tfsec/releases/download/v1.28.1/tfsec-linux-amd64 -O tfsec
+            chmod +x ./tfsec
+            ./tfsec . --format sarif > ../src/junit/tfsec.sarif
+            true
     Compute:
       Type: EC2
