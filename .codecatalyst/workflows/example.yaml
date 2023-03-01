@@ -98,3 +98,39 @@ Actions:
       Type: EC2
     DependsOn:
       - Init
+  Deploy_Terraform_to_DEV:
+    Identifier: aws/build@v1
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: true
+        ReportNamePrefix: rpt
+    Compute:
+      Type: EC2
+    Environment:
+      Connections:
+        - Role: CodeCatalystDeploymentRole
+          Name: "204521158369"
+      Name: Dev
+    DependsOn:
+      - Test_Phase
+    Inputs:
+      Sources:
+        - WorkflowSource
+    Configuration:
+      Steps:
+        - Run: echo "Hello, World! - ready to deploy"
+        - Run: |
+            echo "Installing Terraform"
+            sudo yum install -y yum-utils shadow-utils
+            sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+            sudo yum -y --nogpgcheck install terraform
+        - Run: |
+            echo "Initialising Terraform"
+            cd terraform
+            terraform init
+        - Run: |
+            echo "Running Terraform Plan"
+            terraform plan -no-color
+        - Run: |
+            echo "Running Terraform Apply"
+            terraform apply --auto-approve -no-color
