@@ -48,6 +48,10 @@ Actions:
       AutoDiscoverReports:
         Enabled: false
         ReportNamePrefix: rpt
+      Artifacts:
+        - Name: pythonLibs
+          Files:
+            - /root/.local/**/*
     Configuration:
       Steps:
         - Run: |
