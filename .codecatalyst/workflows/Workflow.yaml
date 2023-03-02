@@ -37,3 +37,105 @@ Actions:
             echo "Install required code libraries"
             cd src
             pip install --user -r requirements.txt
+Compute:
+ Type: EC2
+ Name: Example
+SchemaVersion: "1.0"
+
+# Optional - Set automatic triggers.
+Triggers:
+  - Type: Push
+
+# Required - Define action configurations.
+Actions:
+  Init:
+    Identifier: aws/build@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: false
+        ReportNamePrefix: rpt
+      Artifacts:
+        - Name: pythonLibs
+          Files:
+            - /root/.local/**/*
+    Configuration:
+      Steps:
+        - Run: |-
+            echo "Install required environment libraries on ${HOSTNAME}"
+            pip install --user -r env_requirements.txt
+        - Run: |-
+            echo "Install required code libraries"
+            cd src
+            pip install --user -r requirements.txt
+    Compute:
+      Type: EC2
+  Test_Phase:
+    Identifier: aws/managed-test@v1
+    Inputs:
+      Sources:
+        - WorkflowSource
+      Artifacts:
+        - pythonLibs
+    Outputs:
+      AutoDiscoverReports:
+        Enabled: false
+        ReportNamePrefix: rpt
+      Reports:
+        TestReport:
+          Format: JUNITXML
+          IncludePaths:
+            - src/junit/results.xml
+          SuccessCriteria:
+            PassRate: 100
+        CoverageReport:
+          Format: COBERTURAXML
+          IncludePaths:
+            - src/junit/coverage.xml
+          SuccessCriteria:
+            LineCoverage: 90
+        PythonVulnerabilityReport:
+          Format: SARIFSCA
+          IncludePaths:
+            - src/junit/bandit.sarif
+          SuccessCriteria:
+            Vulnerabilities:
+              Severity: HIGH
+              Number: 0
+        TerraformVulnerabilityReport:
+          Format: SARIFSCA
+          IncludePaths:
+            - src/junit/tfsec.sarif
+          SuccessCriteria:
+            Vulnerabilities:
+              Severity: HIGH
+              Number: 0
+
+    Configuration:
+      Steps:
+        - Run: |
+            echo "Copying artifacts from build on ${HOSTNAME}"
+            mv ${CATALYST_SOURCE_DIR_pythonLibs}/root/.local ~
+            export PATH=$PATH:$HOME/.local/bin
+            cd src
+        - Run: |
+            echo "Running unit tests"
+            python -m pytest
+        - Run: |
+            echo "Running bandit vulnerability scanner"
+            bandit -r . --format sarif --output junit/bandit.sarif
+            true    # Ignore failures flagged by bandit
+        - Run: |
+            echo "Installing and running tfsec"
+            cd ../terraform
+            wget https://github.com/aquasecurity/tfsec/releases/download/v1.28.1/tfsec-linux-amd64 -O tfsec
+            chmod +x ./tfsec
+            ./tfsec . --format sarif > ../src/junit/tfsec.sarif
+            true
+            
+    Compute:
+      Type: EC2
+    DependsOn:
+      - Init
