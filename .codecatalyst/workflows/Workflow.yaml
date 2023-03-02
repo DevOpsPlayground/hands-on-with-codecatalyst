@@ -1,7 +1,7 @@
 Name: Example
 SchemaVersion: "1.0"
 
-# Optional - Set automatic triggers.
+#  Optional - Set automatic triggers.
 Triggers:
   - Type: Push
 
